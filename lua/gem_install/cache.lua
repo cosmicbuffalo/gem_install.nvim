@@ -4,7 +4,6 @@ local function get_cache_file()
     return require("gem_install").config.cache_file
 end
 
---- @return table
 function M.load()
     local cache_file = get_cache_file()
     local file = io.open(cache_file, "r")
@@ -17,7 +16,6 @@ function M.load()
     return success and cache or {}
 end
 
---- @param cache table
 function M.save(cache)
     local cache_file = get_cache_file()
     local file = io.open(cache_file, "w")
@@ -32,11 +30,11 @@ function M.clear()
     if vim.fn.filereadable(cache_file) == 1 then
         vim.fn.delete(cache_file)
         vim.notify(
-            "Bundle/gem install cache cleared. Failed projects will be retried on next open.",
+            "[gem_install.nvim] Bundle/gem install cache cleared. Failed projects will be retried on next open.",
             vim.log.levels.INFO
         )
     else
-        vim.notify("No bundle/gem install cache found.", vim.log.levels.INFO)
+        vim.notify("[gem_install.nvim] No bundle/gem install cache found.", vim.log.levels.INFO)
     end
 end
 

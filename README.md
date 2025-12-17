@@ -45,7 +45,7 @@ require("gem_install").install("ruby-lsp")
 ```lua
 -- Optional, below are built in defaults
 require("gem_install").setup({
-    -- Timeout for bundle install in milliseconds (default: 60000)
+    -- Timeout for bundle install in milliseconds
     bundle_install_timeout = 60000,
     -- Cache file for tracking failed installs
     cache_file = vim.fn.stdpath("cache") .. "/bundle_install_cache.json",
