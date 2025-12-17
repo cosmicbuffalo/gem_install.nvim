@@ -22,19 +22,13 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 ```lua
 {
     "cosmicbuffalo/gem_install.nvim",
+    opts = {},
     dependencies = { "j-hui/fidget.nvim" },
-    cmd = { "GemInstall" }
 }
 ```
 
 
 ## Usage
-
-```vim
-:GemInstall ruby-lsp
-```
-
-OR
 
 ```lua
 require("gem_install").install("ruby-lsp")
