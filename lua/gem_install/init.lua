@@ -9,8 +9,8 @@ M.config = {
 local cache = require("gem_install.cache")
 local installer = require("gem_install.installer")
 
-function M.install(gem_name)
-	installer.install(gem_name)
+function M.install(gem_name, callback)
+	installer.install(gem_name, callback)
 end
 
 function M.open_log()

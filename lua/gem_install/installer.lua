@@ -19,10 +19,17 @@ local function debug_log(msg)
 	end)
 end
 
-function M.install(gem_name)
+function M.install(gem_name, callback)
+	local function invoke_callback(installed, err)
+		if callback then
+			callback(installed, gem_name, err)
+		end
+	end
+
 	local gemfile = vim.fn.findfile("Gemfile", ".;")
 	if gemfile == "" then
 		vim.notify("[gem_install.nvim] No Gemfile found in current directory or parents", vim.log.levels.WARN)
+		invoke_callback(false, "No Gemfile found in current directory or parents")
 		return
 	end
 
@@ -37,6 +44,7 @@ function M.install(gem_name)
 				get_config().cache_file
 			)
 		)
+		invoke_callback(false, "Skipping bundle install (previously failed)")
 		return
 	end
 
@@ -82,6 +90,7 @@ function M.install(gem_name)
 					if #gem_output > 0 then
 						debug_log(string.format("gem install %s succeeded:\n%s", gem_name, table.concat(gem_output, "\n")))
 					end
+					invoke_callback(true, nil)
 				else
 					local message = string.format("gem install %s failed. Run manually if needed.", gem_name)
 					handle.message = message
@@ -92,6 +101,7 @@ function M.install(gem_name)
 					cache_data[cwd] = { failed = true, reason = "gem_install_failed", gem = gem_name }
 					cache.save(cache_data)
 					debug_log(message)
+					invoke_callback(false, message)
 				end
 			end,
 		})
@@ -107,6 +117,7 @@ function M.install(gem_name)
 					handle:finish()
 					cache_data[cwd] = { failed = false }
 					cache.save(cache_data)
+					invoke_callback(true, nil)
 				else
 					run_gem_install()
 				end
@@ -180,6 +191,7 @@ function M.install(gem_name)
 							message = message .. "\nOutput:\n" .. table.concat(output, "\n")
 						end
 						debug_log(message)
+						invoke_callback(false, message)
 						return
 					end
 
@@ -201,6 +213,7 @@ function M.install(gem_name)
 							message = message .. "\n" .. table.concat(output, "\n")
 						end
 						debug_log(message)
+						invoke_callback(false, message)
 					end
 				end,
 			})
