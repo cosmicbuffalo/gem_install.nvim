@@ -2,6 +2,7 @@ local M = {}
 
 M.config = {
   bundle_install_timeout = 60000,
+  cache_ttl_days = 7,
   cache_file = vim.fn.stdpath("cache") .. "/bundle_install_cache.json",
   log_file = vim.fn.stdpath("log") .. "/bundle_gem_debug.log",
 }

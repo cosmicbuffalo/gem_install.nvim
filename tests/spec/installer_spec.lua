@@ -48,15 +48,17 @@ describe("installer module", function()
     end)
 
     describe("when cache indicates previous failure", function()
-      it("should skip installation and return error", function()
+      it("should skip installation and return error when cache is fresh", function()
         -- Create a project directory with Gemfile
         local project_dir = test_dir .. "/project"
         vim.fn.mkdir(project_dir, "p")
         _G.test_helpers.create_gemfile(project_dir)
 
-        -- Mark as failed in cache using the absolute path
+        -- Mark as failed in cache using the absolute path with recent timestamp
         local abs_project_dir = vim.fn.fnamemodify(project_dir, ":p"):gsub("/$", "")
-        cache.save({ [abs_project_dir] = { failed = true, reason = "bundle_install_failed" } })
+        cache.save({
+          [abs_project_dir] = { failed = true, reason = "bundle_install_failed", timestamp = os.time() },
+        })
 
         -- Change to project directory so Gemfile is found
         vim.cmd("cd " .. vim.fn.fnameescape(project_dir))
@@ -75,6 +77,63 @@ describe("installer module", function()
         assert.is_false(callback_result.installed)
         assert.is_not_nil(callback_result.err)
         assert.is_true(callback_result.err:match("previously failed") ~= nil)
+      end)
+
+      it("should retry installation when cache entry has expired", function()
+        -- Create a project directory with Gemfile
+        local project_dir = test_dir .. "/project_expired"
+        vim.fn.mkdir(project_dir, "p")
+        _G.test_helpers.create_gemfile(project_dir)
+
+        -- Mark as failed in cache with an old timestamp (8 days ago)
+        local abs_project_dir = vim.fn.fnamemodify(project_dir, ":p"):gsub("/$", "")
+        local eight_days_ago = os.time() - (8 * 24 * 60 * 60)
+        cache.save({
+          [abs_project_dir] = { failed = true, reason = "bundle_install_failed", timestamp = eight_days_ago },
+        })
+
+        vim.cmd("cd " .. vim.fn.fnameescape(project_dir))
+
+        -- Mock executable and jobstart to track if installation is attempted
+        local original_executable = vim.fn.executable
+        local original_jobstart = vim.fn.jobstart
+        local installation_attempted = false
+
+        vim.fn.executable = function(name)
+          if name == "bundle" or name == "expired-gem-test" then
+            return 0
+          end
+          return original_executable(name)
+        end
+
+        vim.fn.jobstart = function(cmd, opts)
+          if type(cmd) == "string" and cmd:match("^gem install") then
+            installation_attempted = true
+            vim.schedule(function()
+              if opts and opts.on_exit then
+                opts.on_exit(nil, 0) -- Simulate success
+              end
+            end)
+            return 1
+          end
+          return original_jobstart(cmd, opts)
+        end
+
+        local callback_called = false
+
+        installer.install("expired-gem-test", function(_installed, _gem_name, _err)
+          callback_called = true
+        end)
+
+        _G.test_helpers.wait_for(function()
+          return callback_called
+        end, 5000)
+
+        vim.fn.executable = original_executable
+        vim.fn.jobstart = original_jobstart
+
+        -- The key assertion: installation was retried because cache expired
+        assert.is_true(installation_attempted, "Expected installation to be attempted after cache expiry")
       end)
     end)
 

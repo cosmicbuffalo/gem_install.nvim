@@ -39,16 +39,27 @@ function M.install(gem_name, callback)
   cwd = cwd:gsub("/$", "")
 
   local cache_data = cache.load()
-  if cache_data[cwd] and cache_data[cwd].failed then
-    debug_log(
-      string.format(
-        "Skipping install for %s (previously failed). Remove cache to retry: rm %s",
-        gem_name,
-        get_config().cache_file
+  local cached_entry = cache_data[cwd]
+  if cached_entry and cached_entry.failed then
+    -- Check if cache entry has expired
+    local ttl_seconds = get_config().cache_ttl_days * 24 * 60 * 60
+    local now = os.time()
+    local cached_at = cached_entry.timestamp or 0
+    if now - cached_at < ttl_seconds then
+      debug_log(
+        string.format(
+          "Skipping install for %s (previously failed %d days ago, TTL is %d days). Run :GemInstallCacheClear to retry now.",
+          gem_name,
+          math.floor((now - cached_at) / 86400),
+          get_config().cache_ttl_days
+        )
       )
-    )
-    invoke_callback(false, "Skipping install (previously failed)")
-    return
+      invoke_callback(false, "Skipping install (previously failed)")
+      return
+    else
+      debug_log(string.format("Cache entry for %s expired, retrying installation", gem_name))
+      cache_data[cwd] = nil
+    end
   end
 
   local progress = require("fidget.progress")
@@ -88,7 +99,7 @@ function M.install(gem_name, callback)
       on_exit = function(_, gem_exit_code)
         if gem_exit_code == 0 then
           handle:finish()
-          cache_data[cwd] = { failed = false }
+          cache_data[cwd] = { failed = false, timestamp = os.time() }
           cache.save(cache_data)
           if #gem_output > 0 then
             debug_log(string.format("gem install %s succeeded:\n%s", gem_name, table.concat(gem_output, "\n")))
@@ -101,7 +112,7 @@ function M.install(gem_name, callback)
           if #gem_output > 0 then
             message = message .. "\n" .. table.concat(gem_output, "\n")
           end
-          cache_data[cwd] = { failed = true, reason = "gem_install_failed", gem = gem_name }
+          cache_data[cwd] = { failed = true, reason = "gem_install_failed", gem = gem_name, timestamp = os.time() }
           cache.save(cache_data)
           debug_log(message)
           invoke_callback(false, message)
@@ -160,7 +171,7 @@ function M.install(gem_name, callback)
             string.format("bundle install timed out after %ds. Skipping %s setup.", timeout_ms / 1000, gem_name)
           handle.message = message
           handle:cancel()
-          cache_data[cwd] = { failed = true, reason = "timeout" }
+          cache_data[cwd] = { failed = true, reason = "timeout", timestamp = os.time() }
           cache.save(cache_data)
           if #output > 0 then
             message = message .. "\nOutput:\n" .. table.concat(output, "\n")
@@ -175,13 +186,13 @@ function M.install(gem_name, callback)
             debug_log(string.format("bundle install succeeded:\n%s", table.concat(output, "\n")))
           end
           handle:finish()
-          cache_data[cwd] = { failed = false }
+          cache_data[cwd] = { failed = false, timestamp = os.time() }
           cache.save(cache_data)
           invoke_callback(true, nil)
         else
           handle.message = "bundle install failed"
           handle:cancel()
-          cache_data[cwd] = { failed = true, reason = "bundle_install_failed" }
+          cache_data[cwd] = { failed = true, reason = "bundle_install_failed", timestamp = os.time() }
           cache.save(cache_data)
           local message = string.format(
             "bundle install failed. Skipping %s setup. Run 'bundle install' manually if needed, it will not be attempted again automatically.",
@@ -205,7 +216,7 @@ function M.install(gem_name, callback)
         if check_exit_code == 0 then
           -- Bundle is satisfied, we're done
           handle:finish()
-          cache_data[cwd] = { failed = false }
+          cache_data[cwd] = { failed = false, timestamp = os.time() }
           cache.save(cache_data)
           debug_log(string.format("bundle check passed for %s", gem_name))
           invoke_callback(true, nil)

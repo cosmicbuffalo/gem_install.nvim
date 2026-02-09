@@ -31,6 +31,11 @@ describe("gem_install module", function()
       assert.is_string(gem_install.config.log_file)
       assert.is_true(gem_install.config.log_file:match("bundle_gem_debug.log") ~= nil)
     end)
+
+    it("should have default cache_ttl_days", function()
+      assert.is_number(gem_install.config.cache_ttl_days)
+      assert.equals(7, gem_install.config.cache_ttl_days)
+    end)
   end)
 
   describe("setup", function()
